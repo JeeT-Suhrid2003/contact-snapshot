@@ -1,6 +1,6 @@
 "use client";
 import React, { useRef, useState, useEffect } from "react";
-import Tesseract from "tesseract.js";
+import ContactSaver from './ContactSaver';
 
 const CameraCapture: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -27,7 +27,7 @@ const CameraCapture: React.FC = () => {
     }
   };
 
-  const takePhoto = () => {
+  const takePhoto = async () => {
     if (!canvasRef.current || !videoRef.current) return;
     const ctx = canvasRef.current.getContext("2d");
     if (!ctx) return;
@@ -54,15 +54,23 @@ const CameraCapture: React.FC = () => {
 
     setLoading(true);
     setExtractedText(null);
-    Tesseract.recognize(dataURL, "eng")
-      .then(({ data: { text } }) => {
-        setExtractedText(text);
-        setLoading(false);
-      })
-      .catch((err) => {
-        setExtractedText("Failed to extract text.");
-        setLoading(false);
+
+    try {
+      const res = await fetch("/api/extract-text", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ base64Image: dataURL }),
       });
+
+      const result = await res.json();
+      setExtractedText(result.text || "No text found.");
+    } catch (err) {
+      setExtractedText("Failed to extract text.");
+    }
+
+    setLoading(false);
   };
 
   if (!isBrowser) return <p className="text-center text-gray-600 mt-10">Loading camera...</p>;
@@ -104,11 +112,12 @@ const CameraCapture: React.FC = () => {
       {loading && <p className="text-center text-sm text-gray-500">🔍 Processing image...</p>}
 
       {extractedText && (
-        <div>
-          <h2 className="font-semibold mt-4 mb-2">Extracted Text:</h2>
-          <pre className="bg-gray-800 text-white p-4 rounded-xl whitespace-pre-wrap">{extractedText}</pre>
-          </div>
-      )}
+  <div>
+    <h2 className="font-semibold mt-4 mb-2">Extracted Text:</h2>
+    <pre className="bg-gray-800 text-white p-4 rounded-xl whitespace-pre-wrap">{extractedText}</pre>
+    <ContactSaver text={extractedText} />
+  </div>
+)}
     </div>
   );
 };
